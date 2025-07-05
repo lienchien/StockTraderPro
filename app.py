@@ -103,25 +103,139 @@ def show_dashboard(symbol, data, ta):
         st.metric("Avg Volume", f"{volume_avg:,.0f}")
     
     # Price chart with volume
-    fig = go.Figure()
+    from plotly.subplots import make_subplots
     
-    fig.add_trace(go.Candlestick(
-        x=data.index,
-        open=data['Open'],
-        high=data['High'],
-        low=data['Low'],
-        close=data['Close'],
-        name="Price"
-    ))
+    fig = make_subplots(
+        rows=2, cols=1,
+        subplot_titles=(f"{symbol} Price Chart", "Volume"),
+        vertical_spacing=0.1,
+        row_heights=[0.7, 0.3]
+    )
+    
+    # Add candlestick chart
+    fig.add_trace(
+        go.Candlestick(
+            x=data.index,
+            open=data['Open'],
+            high=data['High'],
+            low=data['Low'],
+            close=data['Close'],
+            name="Price"
+        ),
+        row=1, col=1
+    )
+    
+    # Add volume chart
+    fig.add_trace(
+        go.Bar(
+            x=data.index,
+            y=data['Volume'],
+            name="Volume",
+            marker_color='rgba(158,202,225,0.8)'
+        ),
+        row=2, col=1
+    )
+    
+    # Add moving averages to price chart
+    ma20 = ta.moving_average(20)
+    ma50 = ta.moving_average(50)
+    
+    fig.add_trace(
+        go.Scatter(
+            x=data.index,
+            y=ma20,
+            name="MA20",
+            line=dict(color='orange', width=1)
+        ),
+        row=1, col=1
+    )
+    
+    fig.add_trace(
+        go.Scatter(
+            x=data.index,
+            y=ma50,
+            name="MA50",
+            line=dict(color='red', width=1)
+        ),
+        row=1, col=1
+    )
     
     fig.update_layout(
-        title=f"{symbol} Price Chart",
+        title=f"{symbol} Historical Data",
         yaxis_title="Price ($)",
+        yaxis2_title="Volume",
         xaxis_title="Date",
-        height=500
+        height=600,
+        xaxis_rangeslider_visible=False
     )
     
     st.plotly_chart(fig, use_container_width=True)
+    
+    # Historical data summary table
+    st.subheader("Recent Price Data")
+    recent_data = data.tail(10).copy()
+    recent_data = recent_data.round(2)
+    recent_data.index = recent_data.index.strftime('%Y-%m-%d')
+    st.dataframe(recent_data, use_container_width=True)
+    
+    # Price statistics
+    st.subheader("Historical Statistics")
+    
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.write("**Price Range**")
+        price_range = float(data['High'].max() - data['Low'].min())
+        st.write(f"Range: ${price_range:.2f}")
+        st.write(f"High: ${float(data['High'].max()):.2f}")
+        st.write(f"Low: ${float(data['Low'].min()):.2f}")
+    
+    with col2:
+        st.write("**Volatility**")
+        returns = data['Close'].pct_change().dropna()
+        volatility = float(returns.std() * np.sqrt(252) * 100)
+        st.write(f"Annual Volatility: {volatility:.2f}%")
+        
+        daily_vol = float(returns.std() * 100)
+        st.write(f"Daily Volatility: {daily_vol:.2f}%")
+    
+    with col3:
+        st.write("**Volume Analysis**")
+        avg_volume = float(data['Volume'].mean())
+        recent_volume = float(data['Volume'].tail(5).mean())
+        volume_trend = "📈" if recent_volume > avg_volume else "📉"
+        
+        st.write(f"Avg Volume: {avg_volume:,.0f}")
+        st.write(f"Recent Avg: {recent_volume:,.0f} {volume_trend}")
+    
+    # Performance over different periods
+    st.subheader("Performance Summary")
+    
+    periods = {
+        "1 Week": 7,
+        "1 Month": 30,
+        "3 Months": 90,
+        "6 Months": 180,
+        "1 Year": 252
+    }
+    
+    performance_data = []
+    for period_name, days in periods.items():
+        if len(data) > days:
+            start_price = float(data['Close'].iloc[-days])
+            end_price = float(data['Close'].iloc[-1])
+            return_pct = ((end_price - start_price) / start_price) * 100
+            
+            performance_data.append({
+                "Period": period_name,
+                "Start Price": f"${start_price:.2f}",
+                "End Price": f"${end_price:.2f}",
+                "Return": f"{return_pct:.2f}%"
+            })
+    
+    if performance_data:
+        perf_df = pd.DataFrame(performance_data)
+        st.dataframe(perf_df, use_container_width=True)
     
     # Quick technical indicators
     st.subheader("Quick Technical Analysis")
