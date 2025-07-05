@@ -10,6 +10,7 @@ The system follows a modular architecture with separate components for different
 
 - **Frontend**: Streamlit web application providing an interactive dashboard
 - **Data Source**: Yahoo Finance API (yfinance) for real-time and historical stock data
+- **Database**: PostgreSQL database for persistent data storage and caching
 - **Technical Analysis Engine**: Custom implementation of technical indicators
 - **Backtesting Engine**: Strategy testing framework
 - **Portfolio Management**: Trade tracking and performance monitoring
@@ -55,7 +56,16 @@ The system follows a modular architecture with separate components for different
   - Total portfolio value
   - Total return percentage
   - Daily change tracking
-- **Data Storage**: In-memory Python objects
+- **Data Storage**: PostgreSQL database with session state backup
+
+### 6. Database Layer (`db_simple.py`)
+- **Purpose**: Persistent data storage and caching
+- **Features**:
+  - Stock price data caching
+  - Portfolio and trade history storage
+  - Backtest results archiving
+  - Database management interface
+- **Technology**: PostgreSQL with direct SQL queries
 
 ## Data Flow
 
@@ -74,9 +84,12 @@ The system follows a modular architecture with separate components for different
 - **pandas**: Data manipulation and analysis
 - **numpy**: Numerical computations
 - **plotly**: Interactive visualizations
+- **psycopg2-binary**: PostgreSQL database adapter
+- **sqlalchemy**: SQL toolkit and ORM
 
 ### Data Sources
 - **Yahoo Finance**: Primary data source for stock prices and market data
+- **PostgreSQL**: Persistent data storage and caching
 
 ## Deployment Strategy
 
