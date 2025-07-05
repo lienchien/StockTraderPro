@@ -13,3 +13,8 @@ dependencies = [
     "streamlit>=1.46.1",
     "yfinance>=0.2.64",
 ]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=8.1"
+]
