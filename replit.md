@@ -70,14 +70,15 @@ The system follows a modular architecture with separate components for different
   - Daily change tracking
 - **Data Storage**: PostgreSQL database with session state backup
 
-### 7. Database Layer (`db_simple.py`)
+### 7. Database Layer (`database.py`)
 - **Purpose**: Persistent data storage and caching
 - **Features**:
   - Stock price data caching
   - Portfolio and trade history storage
   - Backtest results archiving
   - Database management interface
-- **Technology**: PostgreSQL with direct SQL queries
+- **Technology**: SQLAlchemy-based PostgreSQL engine
+- **Note**: `db_simple.py` remains as a lightweight example.
 
 ## Data Flow
 
@@ -102,6 +103,11 @@ The system follows a modular architecture with separate components for different
 ### Data Sources
 - **Yahoo Finance**: Primary data source for stock prices and market data
 - **PostgreSQL**: Persistent data storage and caching
+
+## Setup
+1. Install the dependencies defined in `pyproject.toml`.
+2. Configure the `DATABASE_URL` environment variable, for example `postgresql://user:password@localhost:5432/dbname`.
+3. Start the app with `streamlit run app.py`.
 
 ## Deployment Strategy
 
