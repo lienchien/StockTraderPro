@@ -22,12 +22,24 @@ The system follows a modular architecture with separate components for different
 - **Purpose**: Streamlit frontend application and navigation
 - **Key Features**:
   - Multi-page dashboard interface
-  - Stock symbol selection
+  - Multi-market stock selection (US, Taiwan)
+  - Stock symbol validation and formatting
   - Date range controls
   - Session state management for portfolio
 - **Technology**: Streamlit, Plotly for visualizations
 
-### 2. Technical Analysis (`technical_analysis.py`)
+### 2. Market Configuration (`market_config.py`)
+- **Purpose**: Configuration for different stock exchanges
+- **Supported Markets**:
+  - US Market (NYSE, NASDAQ)
+  - Taiwan Stock Exchange (TWSE)
+- **Features**:
+  - Symbol format validation
+  - Popular stocks lookup
+  - Currency and timezone information
+  - Market hours display
+
+### 3. Technical Analysis (`technical_analysis.py`)
 - **Purpose**: Calculate technical indicators
 - **Indicators Implemented**:
   - Simple Moving Average (SMA)
@@ -35,14 +47,14 @@ The system follows a modular architecture with separate components for different
   - Relative Strength Index (RSI)
 - **Design Pattern**: Class-based approach with data encapsulation
 
-### 3. Trading Signals (`trading_signals.py`)
+### 4. Trading Signals (`trading_signals.py`)
 - **Purpose**: Generate buy/sell/hold signals based on technical analysis
 - **Strategies**:
   - Moving Average Crossover
   - RSI Mean Reversion
 - **Output**: Integer signals (1 = buy, -1 = sell, 0 = hold)
 
-### 4. Backtesting Engine (`backtesting.py`)
+### 5. Backtesting Engine (`backtesting.py`)
 - **Purpose**: Test trading strategies against historical data
 - **Features**:
   - Strategy performance evaluation
@@ -50,7 +62,7 @@ The system follows a modular architecture with separate components for different
   - Portfolio value tracking
 - **Supported Strategies**: MA Crossover, RSI Mean Reversion, MACD
 
-### 5. Portfolio Management (`portfolio.py`)
+### 6. Portfolio Management (`portfolio.py`)
 - **Purpose**: Track holdings, cash, and performance metrics
 - **Key Metrics**:
   - Total portfolio value
@@ -58,7 +70,7 @@ The system follows a modular architecture with separate components for different
   - Daily change tracking
 - **Data Storage**: PostgreSQL database with session state backup
 
-### 6. Database Layer (`db_simple.py`)
+### 7. Database Layer (`db_simple.py`)
 - **Purpose**: Persistent data storage and caching
 - **Features**:
   - Stock price data caching
@@ -102,7 +114,19 @@ The system follows a modular architecture with separate components for different
 
 Preferred communication style: Simple, everyday language.
 
+## Recent Changes
+
+- July 05, 2025: Multi-market support implementation
+  - Added MarketConfig class for managing different stock exchanges
+  - Implemented Taiwan Stock Exchange (TWSE) support with .TW suffix
+  - Added market selection dropdown with US and Taiwan options
+  - Integrated stock symbol validation and formatting
+  - Updated UI with market-specific currency display (USD/$, TWD/NT$)
+  - Added popular stocks shortcuts for each market
+  - Enhanced dashboard with market information display
+
 ## Changelog
 
-Changelog:
-- July 05, 2025. Initial setup
+- July 05, 2025: Initial setup with core trading features
+- July 05, 2025: PostgreSQL database integration completed
+- July 05, 2025: Multi-market support added (US, Taiwan)

@@ -13,6 +13,7 @@ from backtesting import BacktestEngine
 from portfolio import Portfolio
 from trading_signals import TradingSignals
 from db_simple import simple_db
+from market_config import MarketConfig
 import os
 
 # Page configuration
@@ -60,9 +61,55 @@ def main():
         ["Dashboard", "Technical Analysis", "Backtesting", "Live Trading", "Portfolio", "Database"]
     )
     
-    # Stock selection
+    # Market and stock symbol input
     st.sidebar.subheader("Stock Selection")
-    symbol = st.sidebar.text_input("Enter Stock Symbol", value="AAPL").upper()
+    
+    # Market selection
+    market_code = st.sidebar.selectbox(
+        "選擇股市 (Select Market)",
+        MarketConfig.get_market_list(),
+        format_func=lambda x: MarketConfig.get_market_info(x)["name"]
+    )
+    
+    # Store market in session state
+    if 'selected_market' not in st.session_state:
+        st.session_state.selected_market = market_code
+    
+    # Update session state when market changes
+    if st.session_state.selected_market != market_code:
+        st.session_state.selected_market = market_code
+        st.rerun()
+    
+    market_info = MarketConfig.get_market_info(market_code)
+    
+    # Symbol input with popular stocks
+    col1, col2 = st.sidebar.columns([3, 1])
+    
+    with col1:
+        symbol_input = st.text_input(
+            "股票代碼 (Stock Symbol)", 
+            value="2330" if market_code == "TW" else "AAPL"
+        ).upper()
+    
+    with col2:
+        show_popular = st.button("📋", help="顯示熱門股票")
+    
+    if show_popular:
+        st.sidebar.write("**熱門股票 (Popular Stocks):**")
+        for code, name in market_info["popular_stocks"]:
+            if st.sidebar.button(f"{code} - {name}", key=f"stock_{code}"):
+                symbol_input = code
+                st.rerun()
+    
+    # Validate and format symbol
+    symbol = MarketConfig.format_symbol(symbol_input, market_code)
+    is_valid, validation_msg = MarketConfig.validate_symbol(symbol_input, market_code)
+    
+    if not is_valid:
+        st.sidebar.warning(validation_msg)
+    else:
+        st.sidebar.success(f"交易代碼: {symbol} ({market_info['currency']})")
+        st.sidebar.info(f"交易時間: {market_info['trading_hours']}")
     
     # Date range selection
     st.sidebar.subheader("Date Range")
@@ -124,7 +171,12 @@ def main():
         show_database()
 
 def show_dashboard(symbol, data, ta):
-    st.header(f"Dashboard - {symbol}")
+    # Get market info for display
+    market_code = st.session_state.get('selected_market', 'US')
+    market_info = MarketConfig.get_market_info(market_code)
+    
+    st.header(f"📊 Dashboard - {symbol}")
+    st.caption(f"{market_info['name']} | {market_info['currency']} | {market_info['trading_hours']}")
     
     # Current price and basic info
     current_price = float(data['Close'].iloc[-1])
@@ -132,20 +184,28 @@ def show_dashboard(symbol, data, ta):
     price_change = current_price - prev_price
     price_change_pct = (price_change / prev_price) * 100
     
+    # Get currency symbol
+    currency = market_info['currency']
+    currency_symbol = "$" if currency == "USD" else "NT$" if currency == "TWD" else currency
+    
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
-        st.metric("Current Price", f"${current_price:.2f}", f"{price_change:.2f} ({price_change_pct:.2f}%)")
+        st.metric(
+            "當前價格 (Current Price)", 
+            f"{currency_symbol}{current_price:.2f}", 
+            f"{price_change:.2f} ({price_change_pct:.2f}%)"
+        )
     
     with col2:
-        st.metric("High (52W)", f"${float(data['High'].max()):.2f}")
+        st.metric("年度最高 (52W High)", f"{currency_symbol}{float(data['High'].max()):.2f}")
     
     with col3:
-        st.metric("Low (52W)", f"${float(data['Low'].min()):.2f}")
+        st.metric("年度最低 (52W Low)", f"{currency_symbol}{float(data['Low'].min()):.2f}")
     
     with col4:
         volume_avg = float(data['Volume'].mean())
-        st.metric("Avg Volume", f"{volume_avg:,.0f}")
+        st.metric("平均成交量 (Avg Volume)", f"{volume_avg:,.0f}")
     
     # Price chart with volume
     from plotly.subplots import make_subplots
