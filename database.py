@@ -1,6 +1,6 @@
 import os
 import pandas as pd
-from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Boolean, Text, ForeignKey
+from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Boolean, Text, ForeignKey, func, desc
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 from datetime import datetime
@@ -374,6 +374,71 @@ class DatabaseManager:
                 query = query.limit(limit)
             
             return query.all()
+        finally:
+            session.close()
+
+    def list_cached_symbols(self):
+        """List symbols stored in the stock_data table"""
+        session = self.get_session()
+        try:
+            rows = (
+                session.query(
+                    StockData.symbol.label("symbol"),
+                    func.count(StockData.id).label("records"),
+                    func.min(StockData.date).label("start_date"),
+                    func.max(StockData.date).label("end_date"),
+                )
+                .group_by(StockData.symbol)
+                .order_by(StockData.symbol)
+                .all()
+            )
+            return [
+                {
+                    "symbol": r.symbol,
+                    "records": r.records,
+                    "start_date": r.start_date,
+                    "end_date": r.end_date,
+                }
+                for r in rows
+            ]
+        finally:
+            session.close()
+
+    def list_portfolios(self):
+        """List all portfolios"""
+        session = self.get_session()
+        try:
+            return session.query(Portfolio).order_by(desc(Portfolio.created_at)).all()
+        finally:
+            session.close()
+
+    def list_recent_backtests(self, limit=10):
+        """List recent backtest results with strategy names"""
+        session = self.get_session()
+        try:
+            rows = (
+                session.query(
+                    BacktestResult,
+                    Strategy.name.label("strategy"),
+                )
+                .join(Strategy, BacktestResult.strategy_id == Strategy.id)
+                .order_by(desc(BacktestResult.created_at))
+                .limit(limit)
+                .all()
+            )
+            return [
+                {
+                    "strategy": r.strategy,
+                    "symbol": r.BacktestResult.symbol,
+                    "total_return": r.BacktestResult.total_return,
+                    "annual_return": r.BacktestResult.annual_return,
+                    "max_drawdown": r.BacktestResult.max_drawdown,
+                    "sharpe_ratio": r.BacktestResult.sharpe_ratio,
+                    "num_trades": r.BacktestResult.num_trades,
+                    "created_at": r.BacktestResult.created_at,
+                }
+                for r in rows
+            ]
         finally:
             session.close()
 

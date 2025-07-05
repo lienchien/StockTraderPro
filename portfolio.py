@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 from datetime import datetime
-from db_simple import simple_db
+from database import db_manager
 
 class Portfolio:
     """Portfolio management for tracking holdings and trades"""

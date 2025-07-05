@@ -12,7 +12,7 @@ from technical_analysis import TechnicalAnalysis
 from backtesting import BacktestEngine
 from portfolio import Portfolio
 from trading_signals import TradingSignals
-from db_simple import simple_db
+from database import db_manager
 from market_config import MarketConfig
 import os
 
@@ -28,7 +28,7 @@ st.set_page_config(
 def init_database():
     """Initialize database tables"""
     try:
-        simple_db.create_tables()
+        db_manager.create_tables()
         return True
     except Exception as e:
         st.error(f"Database initialization failed: {e}")
@@ -44,7 +44,7 @@ if 'portfolio' not in st.session_state:
 if 'portfolio_id' not in st.session_state and db_initialized:
     try:
         # Create or get default portfolio
-        portfolio_id = simple_db.create_portfolio("Default Portfolio", 100000)
+        portfolio_id = db_manager.create_portfolio("Default Portfolio", 100000)
         st.session_state.portfolio_id = portfolio_id
     except Exception as e:
         st.warning(f"Could not create database portfolio: {e}")
@@ -125,7 +125,7 @@ def main():
         with st.spinner(f"Fetching data for {symbol}..."):
             # Try to get from database first
             if db_initialized:
-                stock_data = simple_db.get_stock_data(symbol, start_date, end_date)
+                stock_data = db_manager.get_stock_data(symbol, start_date, end_date)
             else:
                 stock_data = None
             
@@ -136,7 +136,7 @@ def main():
                 # Store in database for future use
                 if db_initialized and stock_data is not None and len(stock_data) > 0:
                     try:
-                        simple_db.store_stock_data(symbol, stock_data)
+                        db_manager.store_stock_data(symbol, stock_data)
                         st.success(f"Stock data cached in database")
                     except Exception as db_e:
                         st.warning(f"Could not cache data: {db_e}")
@@ -519,7 +519,7 @@ def show_backtesting(symbol, data, backtest_engine, signals):
             # Store backtest results in database
             if db_initialized and results:
                 try:
-                    backtest_id = simple_db.store_backtest_result(
+                    backtest_id = db_manager.store_backtest_result(
                         strategy, symbol, data.index[0].date(), data.index[-1].date(), results
                     )
                     st.success(f"Backtest results saved to database (ID: {backtest_id})")
@@ -713,7 +713,7 @@ def show_database():
         if st.button("Reset Database"):
             if st.button("Confirm Reset", key="confirm_reset"):
                 try:
-                    simple_db.create_tables()
+                    db_manager.create_tables()
                     st.success("Database reset successfully")
                     st.rerun()
                 except Exception as e:
@@ -724,24 +724,18 @@ def show_database():
     
     # Show available symbols in database
     try:
-        conn = simple_db.get_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT DISTINCT symbol, COUNT(*) as records, MIN(date) as start_date, MAX(date) as end_date FROM stock_data GROUP BY symbol ORDER BY symbol")
-        stock_records = cursor.fetchall()
-        cursor.close()
-        conn.close()
-        
+        stock_records = db_manager.list_cached_symbols()
         if stock_records:
             st.write("**Cached Stock Data:**")
-            cache_data = []
-            for record in stock_records:
-                cache_data.append({
-                    "Symbol": record[0],
-                    "Records": record[1],
-                    "Start Date": record[2],
-                    "End Date": record[3]
-                })
-            
+            cache_data = [
+                {
+                    "Symbol": rec['symbol'],
+                    "Records": rec['records'],
+                    "Start Date": rec['start_date'],
+                    "End Date": rec['end_date'],
+                }
+                for rec in stock_records
+            ]
             cache_df = pd.DataFrame(cache_data)
             st.dataframe(cache_df, use_container_width=True)
         else:
@@ -754,25 +748,19 @@ def show_database():
     st.subheader("Portfolio Data")
     
     try:
-        conn = simple_db.get_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT id, name, initial_cash, current_cash, created_at FROM portfolios ORDER BY created_at DESC")
-        portfolio_records = cursor.fetchall()
-        cursor.close()
-        conn.close()
-        
+        portfolio_records = db_manager.list_portfolios()
         if portfolio_records:
             st.write("**Portfolios in Database:**")
-            portfolio_data = []
-            for record in portfolio_records:
-                portfolio_data.append({
-                    "ID": record[0],
-                    "Name": record[1],
-                    "Initial Cash": f"${record[2]:,.2f}",
-                    "Current Cash": f"${record[3]:,.2f}",
-                    "Created": record[4].strftime("%Y-%m-%d %H:%M")
-                })
-            
+            portfolio_data = [
+                {
+                    "ID": p.id,
+                    "Name": p.name,
+                    "Initial Cash": f"${p.initial_cash:,.2f}",
+                    "Current Cash": f"${p.current_cash:,.2f}",
+                    "Created": p.created_at.strftime("%Y-%m-%d %H:%M"),
+                }
+                for p in portfolio_records
+            ]
             portfolio_df = pd.DataFrame(portfolio_data)
             st.dataframe(portfolio_df, use_container_width=True)
         else:
@@ -785,34 +773,22 @@ def show_database():
     st.subheader("Backtest Results History")
     
     try:
-        conn = simple_db.get_connection()
-        cursor = conn.cursor()
-        cursor.execute("""
-            SELECT strategy_name, symbol, total_return, annual_return, 
-                   max_drawdown, sharpe_ratio, num_trades, created_at 
-            FROM backtest_results 
-            ORDER BY created_at DESC 
-            LIMIT 10
-        """)
-        backtest_records = cursor.fetchall()
-        cursor.close()
-        conn.close()
-        
+        backtest_records = db_manager.list_recent_backtests()
         if backtest_records:
             st.write("**Recent Backtest Results:**")
-            backtest_data = []
-            for record in backtest_records:
-                backtest_data.append({
-                    "Strategy": record[0],
-                    "Symbol": record[1],
-                    "Total Return": f"{record[2]:.2f}%",
-                    "Annual Return": f"{record[3]:.2f}%",
-                    "Max Drawdown": f"{record[4]:.2f}%",
-                    "Sharpe Ratio": f"{record[5]:.2f}",
-                    "Trades": record[6],
-                    "Date": record[7].strftime("%Y-%m-%d %H:%M")
-                })
-            
+            backtest_data = [
+                {
+                    "Strategy": rec['strategy'],
+                    "Symbol": rec['symbol'],
+                    "Total Return": f"{rec['total_return']:.2f}%",
+                    "Annual Return": f"{rec['annual_return']:.2f}%",
+                    "Max Drawdown": f"{rec['max_drawdown']:.2f}%",
+                    "Sharpe Ratio": f"{rec['sharpe_ratio']:.2f}",
+                    "Trades": rec['num_trades'],
+                    "Date": rec['created_at'].strftime("%Y-%m-%d %H:%M"),
+                }
+                for rec in backtest_records
+            ]
             backtest_df = pd.DataFrame(backtest_data)
             st.dataframe(backtest_df, use_container_width=True)
         else:
