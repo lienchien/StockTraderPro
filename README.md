@@ -10,6 +10,7 @@ This project implements the "4H SNR Retest Entry Strategy" described by Zhang Li
 - Trade execution with deterministic stop-loss and take-profit handling.
 - Performance analytics aligned with the strategy specification.
 - A simple optimization interface for backtesting workflows and automated parameter sweeps.
+- Built-in instrumentation for auditing detections, retests, and state transitions.
 
 All components are written in pure Python and use pandas for data handling, making the project easy to integrate with external data feeds or research pipelines.
 
@@ -29,6 +30,7 @@ snr_strategy/
 
 The package exposes the following high-level entry points:
 
+- `prepare_price_data` – normalizes OHLC data (column names, ordering, numeric casting) before running the strategy.
 - `StrategyParameters` – dataclass encapsulating the tunable parameters (`sl_points`, `tp_points`, `co_tolerance_pct`, `retest_atr_factor`, `atr_length`).
 - `SNRRetestStrategy` – orchestrates the detection, retest validation, trade execution, and metric computation.
 - `grid_search` – evaluates multiple parameter combinations according to the optimization objective: `ProfitFactor + α * WinRate - β * MaxDrawdown`.
@@ -64,10 +66,7 @@ The `StrategyResult` object captures
 
 ```python
 import pandas as pd
-from snr_strategy import SNRRetestStrategy, StrategyParameters
 
-# Load your 4H OHLC data as a pandas DataFrame with columns: open, high, low, close
-prices = pd.read_csv("4h_prices.csv")
 
 params = StrategyParameters(
     sl_points=120,

@@ -36,6 +36,11 @@ class SNRManager:
     def invalidate(self, level_type: LevelType) -> None:
         self._levels[level_type] = None
 
+    def has_active_levels(self) -> bool:
+        """Return True if any level is currently tracked."""
+
+        return any(level is not None for level in self._levels.values())
+
 
 class SNRDetector:
     """Detect stable support and resistance levels."""
