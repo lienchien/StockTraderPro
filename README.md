@@ -18,7 +18,6 @@ All components are written in pure Python and use pandas for data handling, maki
 
 ```
 snr_strategy/
-├── data.py           # Data preparation helpers
 ├── config.py          # Parameter definitions
 ├── indicators.py      # Average price & ATR utilities
 ├── levels.py          # SNR detection and management
@@ -62,23 +61,12 @@ The `StrategyResult` object captures
 - Trade ledger with direction, entry/exit info, and PnL.
 - Equity curve aligned with the input data index.
 - `PerformanceMetrics` featuring win rate, profit factor, max drawdown, reward/risk ratio, false retest rate, and net profit.
-- Recorded `DetectionEvent`, `RetestEvent`, and `StateTransition` sequences for deeper diagnostics.
-
-## Instrumentation & Diagnostics
-
-- `StrategyResult` exposes the parameters used for a run alongside instrumentation, keeping backtests self-describing.
-- `StrategyResult` now provides full visibility into the strategy state machine via `detections`, `retests`, and `state_transitions` collections.
-- `RetestDetector.evaluate` returns a `RetestEvaluation` object that explains why a retest passed or failed (e.g., outside tolerance, close breach, confirmation candle).
-- These artifacts make it easier to troubleshoot false signals, understand optimization outcomes, and build explainable trading reports.
 
 ## Usage Example
 
 ```python
 import pandas as pd
-from snr_strategy import SNRRetestStrategy, StrategyParameters, prepare_price_data
 
-# Load your 4H OHLC data as a pandas DataFrame with columns: open, high, low, close
-prices = prepare_price_data(pd.read_csv("4h_prices.csv"))
 
 params = StrategyParameters(
     sl_points=120,
@@ -92,7 +80,6 @@ strategy = SNRRetestStrategy(params)
 result = strategy.run(prices)
 
 print(result.metrics)
-print(result.parameters)
 print(result.trades[0])
 ```
 
