@@ -18,6 +18,7 @@ All components are written in pure Python and use pandas for data handling, maki
 
 ```
 snr_strategy/
+├── data.py           # Data preparation helpers
 ├── config.py          # Parameter definitions
 ├── indicators.py      # Average price & ATR utilities
 ├── levels.py          # SNR detection and management
@@ -30,6 +31,7 @@ snr_strategy/
 
 The package exposes the following high-level entry points:
 
+- `prepare_price_data` – normalizes OHLC data (column names, ordering, numeric casting) before running the strategy.
 - `StrategyParameters` – dataclass encapsulating the tunable parameters (`sl_points`, `tp_points`, `co_tolerance_pct`, `retest_atr_factor`, `atr_length`).
 - `SNRRetestStrategy` – orchestrates the detection, retest validation, trade execution, and metric computation.
 - `grid_search` – evaluates multiple parameter combinations according to the optimization objective: `ProfitFactor + α * WinRate - β * MaxDrawdown`.
@@ -64,6 +66,7 @@ The `StrategyResult` object captures
 
 ## Instrumentation & Diagnostics
 
+- `StrategyResult` exposes the parameters used for a run alongside instrumentation, keeping backtests self-describing.
 - `StrategyResult` now provides full visibility into the strategy state machine via `detections`, `retests`, and `state_transitions` collections.
 - `RetestDetector.evaluate` returns a `RetestEvaluation` object that explains why a retest passed or failed (e.g., outside tolerance, close breach, confirmation candle).
 - These artifacts make it easier to troubleshoot false signals, understand optimization outcomes, and build explainable trading reports.
@@ -72,10 +75,10 @@ The `StrategyResult` object captures
 
 ```python
 import pandas as pd
-from snr_strategy import SNRRetestStrategy, StrategyParameters
+from snr_strategy import SNRRetestStrategy, StrategyParameters, prepare_price_data
 
 # Load your 4H OHLC data as a pandas DataFrame with columns: open, high, low, close
-prices = pd.read_csv("4h_prices.csv")
+prices = prepare_price_data(pd.read_csv("4h_prices.csv"))
 
 params = StrategyParameters(
     sl_points=120,
@@ -89,6 +92,7 @@ strategy = SNRRetestStrategy(params)
 result = strategy.run(prices)
 
 print(result.metrics)
+print(result.parameters)
 print(result.trades[0])
 ```
 

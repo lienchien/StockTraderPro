@@ -8,6 +8,7 @@ from typing import List, Optional, Sequence, Tuple
 import pandas as pd
 
 from .config import StrategyParameters
+from .data import prepare_price_data
 from .events import DetectionEvent, RetestEvent, StateTransition, StrategyState
 from .indicators import atr, average_price
 from .levels import SNRDetector, SNRLevel, SNRManager
@@ -26,6 +27,7 @@ class StrategyResult:
     detections: List[DetectionEvent]
     retests: List[RetestEvent]
     state_transitions: List[StateTransition]
+    parameters: StrategyParameters
 
 
 class SNRRetestStrategy:
@@ -35,11 +37,10 @@ class SNRRetestStrategy:
         self.params = params or StrategyParameters()
 
     def run(self, data: pd.DataFrame) -> StrategyResult:
-        df = data.copy()
-        df = df.rename(columns=str.lower)
-        required = {"open", "high", "low", "close"}
-        if missing := required.difference(df.columns):
-            raise KeyError(f"Input data is missing required columns: {sorted(missing)}")
+        if isinstance(data, pd.DataFrame) and data.attrs.get("snr_prepared"):
+            df = data.copy()
+        else:
+            df = prepare_price_data(data)
 
         avg_prices = average_price(df)
         atr_values = atr(df, self.params.atr_length)
@@ -156,6 +157,7 @@ class SNRRetestStrategy:
             detections=detections,
             retests=retest_events,
             state_transitions=state_transitions,
+            parameters=self.params,
         )
 
     def _evaluate_exit(self, trade: Trade, row: pd.Series, index: int) -> None:

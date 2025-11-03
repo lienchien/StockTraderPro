@@ -9,6 +9,7 @@ from typing import List, Sequence
 import pandas as pd
 
 from .config import StrategyParameters
+from .data import prepare_price_data
 from .metrics import PerformanceMetrics
 from .strategy import SNRRetestStrategy, StrategyResult
 
@@ -33,6 +34,7 @@ class OptimizationResult:
 def grid_search(data: pd.DataFrame, config: OptimizationConfig) -> List[OptimizationResult]:
     """Evaluate parameter combinations and return ranked results."""
 
+    prepared_data = prepare_price_data(data)
     results: List[OptimizationResult] = []
     for co_tol, atr_factor, sl_points, atr_length in product(
         config.co_tolerance_values,
@@ -48,7 +50,7 @@ def grid_search(data: pd.DataFrame, config: OptimizationConfig) -> List[Optimiza
             atr_length=atr_length,
         )
         strategy = SNRRetestStrategy(params)
-        result: StrategyResult = strategy.run(data)
+        result: StrategyResult = strategy.run(prepared_data)
         objective = _objective_value(result.metrics, config)
         results.append(
             OptimizationResult(

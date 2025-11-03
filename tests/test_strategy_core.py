@@ -3,6 +3,7 @@ import math
 import pandas as pd
 
 from snr_strategy.config import StrategyParameters
+from snr_strategy.data import prepare_price_data
 from snr_strategy.events import StrategyState
 from snr_strategy.indicators import atr, average_price
 from snr_strategy.levels import SNRDetector
@@ -68,6 +69,8 @@ def test_strategy_executes_retest_trade() -> None:
     assert retest_event.level_type == "support"
     assert retest_event.reason is None
 
+    assert result.parameters == params
+
     transitions = {(t.from_state, t.to_state) for t in result.state_transitions}
     assert (StrategyState.DETECTION, StrategyState.CONFIRMATION) in transitions
     assert (StrategyState.RETEST, StrategyState.TRADE_EXECUTION) in transitions
@@ -113,3 +116,29 @@ def test_grid_search_orders_results() -> None:
     assert results, "Expected optimization to return results"
     # First result should have objective no smaller than the last
     assert results[0].objective_value >= results[-1].objective_value
+
+
+def test_prepare_price_data_normalizes_and_validates() -> None:
+    raw = pd.DataFrame(
+        [
+            {"Open": "100", "High": "101", "Low": "99", "Close": "100"},
+            {"Open": "101", "High": "102", "Low": "99.5", "Close": "101"},
+        ],
+        index=[pd.Timestamp("2024-01-02 08:00"), pd.Timestamp("2024-01-02 04:00")],
+    )
+
+    prepared = prepare_price_data(raw)
+    assert list(prepared.columns) == ["open", "high", "low", "close"]
+    assert prepared.index.is_monotonic_increasing
+    assert all(pd.api.types.is_float_dtype(dtype) for dtype in prepared.dtypes)
+    assert prepared.attrs.get("snr_prepared") is True
+
+
+def test_prepare_price_data_rejects_missing_columns() -> None:
+    raw = pd.DataFrame({"open": [1, 2], "high": [1, 2], "close": [1, 2]})
+    try:
+        prepare_price_data(raw)
+    except KeyError as exc:
+        assert "low" in str(exc)
+    else:  # pragma: no cover - defensive
+        raise AssertionError("Expected missing column error")
