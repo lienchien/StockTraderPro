@@ -1,138 +1,123 @@
-# Automated Stock Trading System
+# 4H SNR Retest Entry Strategy
 
 ## Overview
 
-This is a Streamlit-based automated stock trading system that provides technical analysis, backtesting capabilities, and portfolio management for stock trading strategies. The application uses real-time market data from Yahoo Finance and implements various technical indicators to generate trading signals.
+This project implements the "4H SNR Retest Entry Strategy" described by Zhang Lianrong. The system focuses on detecting stable Support & Resistance (SNR) zones on 4-hour candles, waiting for controlled retests, and executing trades with a fixed risk-reward ratio. The codebase is organized as a lightweight Python package that provides:
 
-## System Architecture
+- Parameter management for trader-controlled tuning.
+- Modular detection of reversal-based SNR levels.
+- Retest validation using ATR-driven tolerance bands.
+- Trade execution with deterministic stop-loss and take-profit handling.
+- Performance analytics aligned with the strategy specification.
+- A simple optimization interface for backtesting workflows and automated parameter sweeps.
+- Built-in instrumentation for auditing detections, retests, and state transitions.
 
-The system follows a modular architecture with separate components for different functionalities:
+All components are written in pure Python and use pandas for data handling, making the project easy to integrate with external data feeds or research pipelines.
 
-- **Frontend**: Streamlit web application providing an interactive dashboard
-- **Data Source**: Yahoo Finance API (yfinance) for real-time and historical stock data
-- **Database**: PostgreSQL database for persistent data storage and caching
-- **Technical Analysis Engine**: Custom implementation of technical indicators
-- **Backtesting Engine**: Strategy testing framework
-- **Portfolio Management**: Trade tracking and performance monitoring
-- **Signal Generation**: Automated trading signal generation
+## Architecture
 
-## Key Components
+```
+snr_strategy/
+├── config.py          # Parameter definitions
+├── indicators.py      # Average price & ATR utilities
+├── levels.py          # SNR detection and management
+├── models.py          # Shared dataclasses (trades, enums)
+├── retest.py          # Retest validation logic
+├── strategy.py        # End-to-end state machine & backtesting
+├── metrics.py         # Performance metric calculations
+└── optimization.py    # Grid-search based optimization helper
+```
 
-### 1. Main Application (`app.py`)
-- **Purpose**: Streamlit frontend application and navigation
-- **Key Features**:
-  - Multi-page dashboard interface
-  - Multi-market stock selection (US, Taiwan)
-  - Stock symbol validation and formatting
-  - Date range controls
-  - Session state management for portfolio
-- **Technology**: Streamlit, Plotly for visualizations
+The package exposes the following high-level entry points:
 
-### 2. Market Configuration (`market_config.py`)
-- **Purpose**: Configuration for different stock exchanges
-- **Supported Markets**:
-  - US Market (NYSE, NASDAQ)
-  - Taiwan Stock Exchange (TWSE)
-- **Features**:
-  - Symbol format validation
-  - Popular stocks lookup
-  - Currency and timezone information
-  - Market hours display
+- `StrategyParameters` – dataclass encapsulating the tunable parameters (`sl_points`, `tp_points`, `co_tolerance_pct`, `retest_atr_factor`, `atr_length`).
+- `SNRRetestStrategy` – orchestrates the detection, retest validation, trade execution, and metric computation.
+- `grid_search` – evaluates multiple parameter combinations according to the optimization objective: `ProfitFactor + α * WinRate - β * MaxDrawdown`.
 
-### 3. Technical Analysis (`technical_analysis.py`)
-- **Purpose**: Calculate technical indicators
-- **Indicators Implemented**:
-  - Simple Moving Average (SMA)
-  - Exponential Moving Average (EMA)
-  - Relative Strength Index (RSI)
-- **Design Pattern**: Class-based approach with data encapsulation
+## Key Concepts
 
-### 4. Trading Signals (`trading_signals.py`)
-- **Purpose**: Generate buy/sell/hold signals based on technical analysis
-- **Strategies**:
-  - Moving Average Crossover
-  - RSI Mean Reversion
-- **Output**: Integer signals (1 = buy, -1 = sell, 0 = hold)
+### Candle Stability
+The detector verifies that consecutive candles transition smoothly using the formula:
 
-### 5. Backtesting Engine (`backtesting.py`)
-- **Purpose**: Test trading strategies against historical data
-- **Features**:
-  - Strategy performance evaluation
-  - Trade history tracking
-  - Portfolio value tracking
-- **Supported Strategies**: MA Crossover, RSI Mean Reversion, MACD
+```
+abs(previous_close - current_open) <= average_price * co_tolerance_pct
+```
 
-### 6. Portfolio Management (`portfolio.py`)
-- **Purpose**: Track holdings, cash, and performance metrics
-- **Key Metrics**:
-  - Total portfolio value
-  - Total return percentage
-  - Daily change tracking
-- **Data Storage**: PostgreSQL database with session state backup
+Only when this stability holds do we test for reversal structures. Bearish-to-bullish transitions create support levels, while bullish-to-bearish transitions create resistance levels.
 
-### 7. Database Layer (`database.py`)
-- **Purpose**: Persistent data storage and caching
-- **Features**:
-  - Stock price data caching
-  - Portfolio and trade history storage
-  - Backtest results archiving
-  - Database management interface
-- **Technology**: SQLAlchemy-based PostgreSQL engine
-- **Note**: `db_simple.py` is included only as a lightweight example.
+### Retest Logic
+Once a level is confirmed, the strategy waits for subsequent candles that:
 
-## Data Flow
+- Touch the level within `ATR * retest_atr_factor`.
+- Close back on the "safe" side of the level (above support or below resistance).
+- Are different from the confirmation candle.
 
-1. **Data Ingestion**: Yahoo Finance API provides real-time/historical stock data
-2. **Technical Analysis**: Raw price data is processed to calculate indicators
-3. **Signal Generation**: Technical indicators are analyzed to generate trading signals
-4. **Strategy Execution**: Signals are processed through backtesting or live trading
-5. **Portfolio Updates**: Trades update portfolio holdings and cash positions
-6. **Performance Tracking**: Portfolio values and returns are calculated and displayed
+Valid retests trigger trades with fixed stop-loss and take-profit distances (`sl_points`, `tp_points`).
 
-## External Dependencies
+### Performance Metrics
+The `StrategyResult` object captures
 
-### Core Libraries
-- **Streamlit**: Web application framework
-- **yfinance**: Yahoo Finance data provider
-- **pandas**: Data manipulation and analysis
-- **numpy**: Numerical computations
-- **plotly**: Interactive visualizations
-- **psycopg2-binary**: PostgreSQL database adapter
-- **sqlalchemy**: SQL toolkit and ORM
+- Trade ledger with direction, entry/exit info, and PnL.
+- Equity curve aligned with the input data index.
+- `PerformanceMetrics` featuring win rate, profit factor, max drawdown, reward/risk ratio, false retest rate, and net profit.
+- Recorded `DetectionEvent`, `RetestEvent`, and `StateTransition` sequences for deeper diagnostics.
 
-### Data Sources
-- **Yahoo Finance**: Primary data source for stock prices and market data
-- **PostgreSQL**: Persistent data storage and caching
+## Instrumentation & Diagnostics
 
-## Setup
-1. Install the dependencies defined in `pyproject.toml`.
-2. Set the `DATABASE_URL` environment variable with your PostgreSQL connection string, e.g., `postgresql://user:password@localhost:5432/dbname`.
-3. Run the Streamlit app with `streamlit run app.py`.
+- `StrategyResult` now provides full visibility into the strategy state machine via `detections`, `retests`, and `state_transitions` collections.
+- `RetestDetector.evaluate` returns a `RetestEvaluation` object that explains why a retest passed or failed (e.g., outside tolerance, close breach, confirmation candle).
+- These artifacts make it easier to troubleshoot false signals, understand optimization outcomes, and build explainable trading reports.
 
-## Deployment Strategy
+## Usage Example
 
-- **Platform**: Local deployment or hosting on platforms like Replit
-- **Architecture**: Single-instance Streamlit application
-- **Session Management**: Streamlit session state for user data persistence
-- **Scalability**: Designed for individual user sessions
+```python
+import pandas as pd
+from snr_strategy import SNRRetestStrategy, StrategyParameters
 
-## User Preferences
+# Load your 4H OHLC data as a pandas DataFrame with columns: open, high, low, close
+prices = pd.read_csv("4h_prices.csv")
 
-Preferred communication style: Simple, everyday language.
+params = StrategyParameters(
+    sl_points=120,
+    tp_points=240,
+    co_tolerance_pct=0.002,
+    retest_atr_factor=1.0,
+    atr_length=14,
+)
 
-## Recent Changes
+strategy = SNRRetestStrategy(params)
+result = strategy.run(prices)
 
-- July 05, 2025: Multi-market support implementation
-  - Added MarketConfig class for managing different stock exchanges
-  - Implemented Taiwan Stock Exchange (TWSE) support with .TW suffix
-  - Added market selection dropdown with US and Taiwan options
-  - Integrated stock symbol validation and formatting
-  - Updated UI with market-specific currency display (USD/$, TWD/NT$)
-  - Added popular stocks shortcuts for each market
-  - Enhanced dashboard with market information display
+print(result.metrics)
+print(result.trades[0])
+```
 
-## Changelog
+## Optimization
 
-- July 05, 2025: Initial setup with core trading features
-- July 05, 2025: PostgreSQL database integration completed
-- July 05, 2025: Multi-market support added (US, Taiwan)
+```python
+from snr_strategy.optimization import OptimizationConfig, grid_search
+
+config = OptimizationConfig(
+    co_tolerance_values=[0.0015, 0.002, 0.0025],
+    retest_atr_values=[0.75, 1.0, 1.25],
+    sl_points=[80, 100, 120],
+)
+
+ranked_results = grid_search(prices, config)
+best = ranked_results[0]
+print(best.parameters)
+print(best.metrics)
+```
+
+The results are returned sorted by the objective value, enabling easy selection of top-performing configurations.
+
+## Development & Testing
+
+1. Install dependencies: `pip install -e .[test]`
+2. Run the test suite: `pytest`
+
+Sample datasets for testing are included directly in the unit tests for reproducibility.
+
+## License
+
+This repository is provided for educational and research purposes. Adapt the modules to suit your execution environment or integrate them into larger trading platforms as needed.
